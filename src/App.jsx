@@ -1,124 +1,140 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import './App.css';
+import { useEffect, useState } from 'react'
 
-function App() {
-  const [status, setStatus] = useState('Disconnected');
-  const [mode, setMode] = useState('auto');
-  const [ws, setWs] = useState(null);
-  const [cameraIP, setCameraIP] = useState('192.168.1.100'); // Replace with ESP32-CAM IP
-  const [carIP, setCarIP] = useState('192.168.1.101'); // Replace with ESP32 Car IP
-  const [authKey, setAuthKey] = useState('SECRET_KEY123'); // Match ESP32 code
+export default function App() {
+  const [status, setStatus] = useState('Disconnected')
+  const [mode, setMode] = useState('auto')
+  const [ws, setWs] = useState(null)
+  const [cameraIP, setCameraIP] = useState('192.168.1.100')
+  const [carIP, setCarIP] = useState('192.168.1.101')
+  const [authKey, setAuthKey] = useState('SECURE_KEY_123')
+  const [streamKey, setStreamKey] = useState(Date.now())
 
-  const connectWebSocket = useCallback(() => {
-    const websocket = new WebSocket(`ws://${carIP}:81`);
+  // WebSocket Connection
+  useEffect(() => {
+    const websocket = new WebSocket(`ws://${carIP}:81`)
     
     websocket.onopen = () => {
-      setStatus('Authenticating...');
-      websocket.send(authKey);
-    };
+      setStatus('Authenticating...')
+      websocket.send(authKey)
+    }
 
     websocket.onmessage = (e) => {
-      const message = e.data;
-      if (message === 'AUTH_SUCCESS') {
-        setStatus('Connected (Manual Mode)');
-        setMode('manual');
-      } else if (message.startsWith('MODE:')) {
-        setMode(message.split(':')[1].toLowerCase());
-        setStatus(`Connected (${message.split(':')[1]} Mode)`);
-      } else {
-        console.log('Server:', message);
+      const msg = e.data
+      if(msg === 'AUTH_SUCCESS') {
+        setStatus('Connected (Auto Mode)')
+        setMode('auto')
+      } else if(msg.startsWith('MODE:')) {
+        const newMode = msg.split(':')[1].toLowerCase()
+        setMode(newMode)
+        setStatus(`Connected (${newMode.charAt(0).toUpperCase() + newMode.slice(1)} Mode)`)
       }
-    };
+    }
 
     websocket.onclose = () => {
-      setStatus('Disconnected');
-      setMode('auto');
-    };
-
-    setWs(websocket);
-  }, [carIP, authKey]);
-
-  useEffect(() => {
-    connectWebSocket();
-    return () => ws?.close();
-  }, [connectWebSocket]);
-
-  const sendCommand = (command) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(command);
+      setStatus('Disconnected')
+      setMode('auto')
     }
-  };
 
-  const toggleMode = () => {
-    const newMode = mode === 'auto' ? 'MANUAL' : 'AUTO';
-    sendCommand(newMode);
-  };
+    setWs(websocket)
+    return () => websocket.close()
+  }, [carIP, authKey])
+
+  const sendCommand = (cmd) => {
+    if(ws?.readyState === WebSocket.OPEN) ws.send(cmd)
+  }
 
   return (
-    <div className="app-container">
-      <div className="status-bar">
-        <div className={`status-indicator ${status.includes('Connected') ? 'connected' : 'disconnected'}`} />
-        <span>{status}</span>
-        <div className="ip-inputs">
+    <div className="min-h-screen bg-gray-100 p-4">
+      {/* Connection Status Bar */}
+      <div className="bg-white rounded-lg p-4 mb-4 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className={`w-3 h-3 rounded-full ${status.includes('Connected') ? 'bg-green-500' : 'bg-red-500'}`} />
+          <span className="text-gray-600">{status}</span>
           <input
             type="text"
             value={carIP}
             onChange={(e) => setCarIP(e.target.value)}
+            className="px-2 py-1 border rounded text-sm"
             placeholder="Car IP"
           />
           <input
-            type="text"
-            value={cameraIP}
-            onChange={(e) => setCameraIP(e.target.value)}
-            placeholder="Camera IP"
+            type="password"
+            value={authKey}
+            onChange={(e) => setAuthKey(e.target.value)}
+            className="px-2 py-1 border rounded text-sm"
+            placeholder="Auth Key"
           />
         </div>
       </div>
 
-      <div className="main-content">
-        <div className="video-feed">
-          <h2>Live Camera Feed</h2>
-          <img 
-            src={`http://${cameraIP}/stream`} 
-            alt="Live feed" 
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = '/connection-lost.jpg';
-            }}
-          />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Camera Stream */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="p-4 border-b">
+            <h2 className="text-lg font-semibold">Live Camera Feed</h2>
+            <input
+              type="text"
+              value={cameraIP}
+              onChange={(e) => setCameraIP(e.target.value)}
+              className="mt-2 p-2 border rounded w-full text-sm"
+              placeholder="Camera IP"
+            />
+          </div>
+          <div className="aspect-video bg-black">
+            <img
+              src={`http://${cameraIP}/stream?t=${streamKey}`}
+              alt="Live Stream"
+              className="w-full h-full object-contain"
+              onError={(e) => e.target.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='}
+              onClick={() => setStreamKey(Date.now())}
+            />
+          </div>
         </div>
 
-        <div className="control-panel">
-          <button 
-            className={`mode-toggle ${mode}`}
-            onClick={toggleMode}
+        {/* Controls */}
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <button
+            onClick={() => sendCommand(mode === 'auto' ? 'MANUAL' : 'AUTO')}
+            className={`w-full py-2 rounded-md mb-4 ${
+              mode === 'auto' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-orange-500 hover:bg-orange-600'
+            } text-white transition-colors`}
           >
             {mode.toUpperCase()} MODE
           </button>
 
           {mode === 'manual' && (
-            <div className="manual-controls">
-              <button onClick={() => sendCommand('forward')}>▲ Forward</button>
-              <div className="horizontal-controls">
-                <button onClick={() => sendCommand('left')}>◀ Left</button>
-                <button onClick={() => sendCommand('stop')}>⏹ Stop</button>
-                <button onClick={() => sendCommand('right')}>Right ▶</button>
+            <div className="space-y-2">
+              <button onClick={() => sendCommand('forward')} className="control-btn">
+                ▲ Forward
+              </button>
+              <div className="grid grid-cols-3 gap-2">
+                <button onClick={() => sendCommand('left')} className="control-btn">
+                  ◀ Left
+                </button>
+                <button onClick={() => sendCommand('stop')} className="control-btn bg-red-500 hover:bg-red-600">
+                  ⏹ Stop
+                </button>
+                <button onClick={() => sendCommand('right')} className="control-btn">
+                  Right ▶
+                </button>
               </div>
-              <button onClick={() => sendCommand('backward')}>▼ Backward</button>
+              <button onClick={() => sendCommand('backward')} className="control-btn">
+                ▼ Backward
+              </button>
             </div>
           )}
 
           {mode === 'auto' && (
-            <div className="auto-status">
-              <h3>Autonomous Mode Active</h3>
-              <p>The car is navigating independently</p>
-              <p>Obstacle detection and flame sensing enabled</p>
+            <div className="p-4 bg-blue-50 rounded-md border border-blue-200">
+              <h3 className="text-lg font-semibold text-blue-800">Autonomous Mode Active</h3>
+              <p className="text-blue-700 mt-2">
+                Vehicle is navigating independently using sensor data. 
+                Obstacle avoidance and flame detection systems are engaged.
+              </p>
             </div>
           )}
         </div>
       </div>
     </div>
-  );
+  )
 }
-
-export default App;
