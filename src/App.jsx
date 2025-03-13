@@ -5,7 +5,7 @@ export default function App() {
   const [mode, setMode] = useState('auto')
   const [ws, setWs] = useState(null)
   const [cameraIP, setCameraIP] = useState('192.168.1.100')
-  const [carIP, setCarIP] = useState('192.168.1.101')
+  const [carIP, setCarIP] = useState('192.168.0.112')
   const [authKey, setAuthKey] = useState('SECURE_KEY_123')
   const [streamKey, setStreamKey] = useState(Date.now())
 
